@@ -1,5 +1,7 @@
 # Margin Control Tower
 
+[![CI](https://github.com/LucisZhang/margin-control-tower/actions/workflows/ci.yml/badge.svg)](https://github.com/LucisZhang/margin-control-tower/actions/workflows/ci.yml)
+
 Margin dashboards usually show you a KPI and hide everything that made it: the grain, the
 metric formulas, the split rules, the assumptions behind the recommended action. This project
 inverts that. It's a browser workbench for weekly contribution margin where the **data
