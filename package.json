@@ -10,8 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test:e2e": "npm run build && playwright test",
     "generate:data": "node scripts/generate-analytics-fixtures.mjs",
-    "generate:analytics-parquet": "node scripts/generate-analytics-parquet.mjs",
-    "test:e2e": "npm run build && playwright test"
+    "generate:analytics-parquet": "node scripts/generate-analytics-parquet.mjs"
   },
   "dependencies": {
     "@duckdb/duckdb-wasm": "^1.29.0",
