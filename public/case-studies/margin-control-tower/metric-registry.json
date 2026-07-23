@@ -1,24 +1,33 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "metrics": [
     {
       "id": "gross_revenue",
       "formula": "units * unit_price",
-      "grain": "week x product x region x channel",
-      "unit": "synthetic currency units"
+      "grain": "source-specific declared grain",
+      "unit": {
+        "real": "BRL-denominated Olist aggregate value",
+        "synthetic": "synthetic currency units"
+      }
     },
     {
       "id": "net_revenue",
       "formula": "gross_revenue - discounts - returns",
-      "grain": "week x product x region x channel",
-      "unit": "synthetic currency units"
+      "grain": "source-specific declared grain",
+      "unit": {
+        "real": "BRL-denominated aggregate with disclosed discount and return proxies",
+        "synthetic": "synthetic currency units"
+      }
     },
     {
       "id": "contribution_margin",
       "formula": "net_revenue - cogs - fulfillment",
-      "grain": "week x product x region x channel",
-      "unit": "synthetic currency units",
-      "decision_use": "diagnose margin leakage and compare bounded promotion scenarios"
+      "grain": "source-specific declared grain",
+      "unit": {
+        "real": "BRL-denominated aggregate with disclosed COGS proxy and observed freight",
+        "synthetic": "synthetic currency units"
+      },
+      "decision_use": "diagnose margin drivers and compare bounded promotion scenarios"
     },
     {
       "id": "contribution_margin_rate",
@@ -28,6 +37,9 @@
       "decision_use": "compare slices with different revenue scales"
     }
   ],
-  "owner": "fictional category finance owner",
-  "provenance": "computed from fixed-seed synthetic dataset v2"
+  "owner": "portfolio case-study decision owner",
+  "provenance": {
+    "real": "computed from the hash-locked Olist pipeline with observed values and disclosed proxies",
+    "synthetic": "computed from fixed-seed synthetic dataset v2"
+  }
 }
