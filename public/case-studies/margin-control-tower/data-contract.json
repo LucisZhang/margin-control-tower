@@ -1,12 +1,30 @@
 {
-  "schema_version": 2,
-  "dataset": "synthetic-margin-data.json",
-  "grain": [
-    "week",
-    "product_id",
-    "region",
-    "channel"
-  ],
+  "schema_version": 3,
+  "default_source": "olist-margin.parquet",
+  "sources": {
+    "real": {
+      "dataset": "olist-margin.parquet",
+      "classification": "derived Olist aggregate",
+      "grain": [
+        "week",
+        "category",
+        "region",
+        "dominant_payment_channel"
+      ],
+      "provenance_check": "non-empty Olist observed/proxy disclosure embedded in every row"
+    },
+    "synthetic": {
+      "dataset": "synthetic-margin-data.json",
+      "classification": "fixed-seed fictional fallback and test fixture",
+      "grain": [
+        "week",
+        "product_id",
+        "region",
+        "channel"
+      ],
+      "provenance_check": "provenance equals synthetic"
+    }
+  },
   "required_fields": [
     "week",
     "period_split",
@@ -31,17 +49,17 @@
     "injected_anomaly",
     "anomaly_reason"
   ],
-  "checks": [
+  "shared_checks": [
     "schema fields present",
-    "week-product-region-channel grain unique",
+    "source-specific grain unique",
     "dimension keys are non-null",
     "numeric costs and revenue non-negative",
     "promotion and return rates bounded",
     "gross revenue equals units times unit price",
     "net revenue equals gross minus discounts and returns",
     "contribution margin equals net revenue minus COGS and fulfillment",
-    "analysis and holdout periods are disjoint",
-    "provenance equals synthetic"
+    "exact final-eight-week holdout without leakage",
+    "source-specific provenance check passes"
   ],
-  "failure_policy": "The workspace fails closed and does not produce a decision output if a contract check fails."
+  "failure_policy": "The workspace fails closed and does not produce a decision output if an applicable contract check fails."
 }
