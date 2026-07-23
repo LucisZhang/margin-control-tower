@@ -1,7 +1,9 @@
 node_modules/
+node_modules
 .next/
 playwright-report/
 test-results/
-public/case-studies/credit-policy-lab/
+public/duckdb/duckdb-browser-mvp.worker.js
+public/duckdb/duckdb-mvp.wasm
 .DS_Store
 *.tsbuildinfo

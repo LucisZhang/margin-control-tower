@@ -4,83 +4,143 @@
 
 [![CI](https://github.com/LucisZhang/margin-control-tower/actions/workflows/ci.yml/badge.svg)](https://github.com/LucisZhang/margin-control-tower/actions/workflows/ci.yml)
 
-毛利仪表盘通常只向你展示一个 KPI,却隐藏了构成它的所有东西:数据粒度、指标公式、拆分规则、以及推荐行动背后的假设。本项目反其道而行之。它是一个面向每周贡献毛利(contribution margin)的浏览器工作台,其中**数据契约、会计恒等式、异常来源、留出集边界和情景假设都是一等的、可检查的对象**——并且当契约检查失败时,决策输出会被标记为受阻(blocked),而不是被粉饰。
+**一个完全在浏览器中分析真实电商数据集的每周贡献毛利工作台——包含流水线、哈希和实测评估，使每个数字都能仅凭本仓库核验。**
 
-一个托管版本运行在配套的作品集部署上(在本仓库之外;其当前状态无法从此处验证):
-https://portfolio-site-nsam734g0-luciszhangs-projects.vercel.app/analytics/margin-control-tower
+决策问题是：一位品类经理观察到每周贡献毛利发生变化，必须在采取行动前回答三个问题——毛利在*哪里*出了问题（品类、地区、支付渠道），*哪个*成本驱动因素变动了（折扣、退货、COGS、履约），以及*一个有界的促销调整是否值得测试*？大多数仪表板只给出一个 KPI，却隐藏了产生它的粒度、公式和假设。而在这里，这些都是一等对象：数据契约、会计恒等式、留出集边界和情景假设全部可在 UI 中检查，且契约检查失败会阻断决策输出，而不是装饰它。
 
-![Margin Control Tower desktop workflow](docs/screenshots/margin-desktop.png)
+一切都从受跟踪的文件运行：一个确定性的离线流水线，处理
+[Brazilian E-Commerce Public Dataset by Olist](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce)
+（六张关系表中的 99,441 个订单）、由其派生的浏览器安全 Parquet 聚合、两份与该制品哈希关联的实测评估报告，以及消费这些数据的 Next.js + DuckDB-WASM 工作台。一个受治理的固定种子合成夹具仍可作为显式的回退与测试模式使用。
 
-该截图由 `npm run test:e2e` 重新生成:Playwright 工作流测试(`tests/e2e/workflow.spec.ts`)从运行中的工作台进行整页捕获。
+![Margin Control Tower workbench](docs/screenshots/margin-desktop.png)
 
-## 本仓库包含什么
+*由 Playwright 工作流测试（`tests/e2e/workflow.spec.ts`）生成的整页截图，展示默认的经哈希校验 Olist 路径及其紧凑首屏预览。*
 
-这是**受治理的合成数据工作台**:一个固定种子的生成器、已提交的 fixture 产物、类型化契约,以及一个在浏览器中原生计算所有内容的 Next.js 分析界面。
+## 本项目展示的技能
 
-作品集 [`codex/portfolio-phase2`](https://github.com/LucisZhang/portfolio-site/tree/codex/portfolio-phase2) 分支上的一个配套集成在此工作台之上添加了真实数据模式。这些真实数据产物、方法和结果存在于该分支并在那里有文档记录——本仓库中的每一个数字,按设计都是合成 fixture 行为。
+- **数据工程**——一个哈希锁定、确定性的 Python 流水线
+  （`pipelines/olist-margin/build.py`）协调六张关系表（订单、订单项、客户、产品、支付、评论），并对多支付订单、多评论订单、缺失品类和支付差异设有显式规则。它在任何来源或契约违规时失败关闭（fail closed），并将溯源信息——来源 URL、许可证、检索日期、原始哈希、转换版本、代理边界——嵌入 Parquet 元数据本身。
+- **数据分析**——一个通过确定性回放评估的 STL + 稳健 z 分数检测器（在六个标注扰动上召回率 1.000、精确率 0.316），以及一个带品类/地区/渠道固定效应的 HC3 双对数弹性回归，仅在分析窗口上拟合，并在八周留出集上评分。接近零的系数和较弱的 75.9% 留出集 MAPE 均按实测如实报告，而非修饰成更好的故事。
+- **分析应用工程**——一条浏览器内 DuckDB-WASM 查询路径，在渲染任何内容之前先验证所提供 Parquet 的 SHA-256；一个哈希绑定的紧凑预览用于快速首屏绘制，并就位升级为完整物化；十个在 UI 中呈现的失败关闭数据契约；以及在制品缺失或无效时的受治理合成回退——这正是 AI 应用评估工具所依赖的"先验证再信任、失败关闭"的纪律。
 
-## Fixture
-
-种子 `2026071301` 确定性地生成 **9,360 行**,粒度为 周 × 产品 × 地区 × 渠道:52 周、20 个产品、5 个品类、3 个地区、3 个渠道,合计 528,367 笔合成订单。关键结构:
-
-- **最后八周是一个不相交的留出集(holdout)**(7,920 行分析数据 / 1,440 行留出数据),被排除在诊断期间之外,以便情景工作流有一个诚实的边界。
-- **在周索引 42 处有一个固定异常**,击中西部地区的电子产品——12 行(4 个产品 × 1 个地区 × 3 个渠道),其订单量、促销深度、退货和履约成本均被抬高。这 12 行在注册表公式下合计为合成总收入 74,346、贡献毛利 −10,331.52。该异常是*被注入并标注的*,因此诊断工作流可以被演示,而无需假装具备检测能力。
-- 输出:JSON、CSV、示例 CSV 和 ZSTD Parquet。JSON 封装中嵌入了行数组的 SHA-256 哈希(`rows_sha256`),且每一行都携带 `provenance=synthetic`。
-
-**十项确定性检查**验证必填字段、唯一粒度、非空维度、数值边界、毛收入 → 净收入 → 贡献毛利的会计恒等式、拆分有效性以及来源(provenance)。契约声明的失败策略是失败即关闭(fail-closed):当某项检查失败时,工作台会将决策输出标记为受阻。
-
-## 工作台计算什么
-
-- 一个**七步毛利瀑布**——总收入 → 折扣 → 退货 → 净收入 → COGS → 履约 → 贡献毛利——与每个筛选器联动。
-- 52 周趋势、品类 × 地区热力图、成本驱动因素视图和产品贡献者,全部在浏览器中基于已提交的 fixture 计算。
-- 一个**带有已披露规则的促销情景**:一个固定的单位响应假设(在 UI 中逐字打印)将促销深度的变化映射为单位销量的变化,同时退货率和单位经济保持不变。UI 将其标注为*假设*,而非预测——这就是情景工具与预测声明之间的区别。
-- 留出集提示,将最后八周标记为留出对比,而非诊断证据。
-
-## 快速开始
+## 快速开始——真实数据路径
 
 ```bash
 npm ci
-npm run dev        # http://localhost:3000 — 从已提交的 fixture 确定性启动
+npm run dev        # http://localhost:3000 — 默认加载已提交的 Olist 制品
 ```
 
-使用已提交的 fixture,工作台控制栏报告 `10 / 10 contracts pass`。
+工作台在浏览器中对 `olist-margin.parquet` 进行哈希验证，渲染一个哈希绑定的紧凑预览，然后通过 DuckDB-WASM 物化全部 15,809 行——仅同源请求，无外部服务。
 
-验证界面:
+最快验证，无需 Python：
 
 ```bash
-npm run generate:data                # 从固定种子重新生成 fixture
-npm run generate:analytics-parquet
-npm run typecheck
-npm run lint
-npm run test:e2e                     # next build + Playwright
+shasum -a 256 public/case-studies/margin-control-tower/olist-margin.parquet
+# 6921b7ed790367fe9d9ade878a7b97e6d7c2879b9488eef51b326ad9775722fb
+node scripts/generate-olist-margin-preview.mjs --check   # 从这些精确字节重新派生已提交的浏览器预览
 ```
 
-## 声明边界
+完整流水线验证与重建（Python 3.12；`--download` 获取并哈希校验六张原始表，`--verify-only` 重新验证每个已提交的输出）：
 
-- 每一行都是合成的;每个指标都是 fixture 行为。被注入的异常和情景演示的是一个决策*工作流*——它们不确立任何真实的提升、检测准确度、预测质量或因果影响。
-- 这是一个静态分析案例研究,不是数据仓库、调度器或多服务平台。
-- 真实数据工作——其数据集、许可证、方法和结果——属于配套的作品集分支集成及其自有文档记录的代理与局限。其中没有任何内容是由本仓库产生或佐证的。
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r pipelines/olist-margin/requirements.txt
+.venv/bin/python pipelines/olist-margin/build.py --download
+.venv/bin/python pipelines/olist-margin/build.py --verify-only
+```
 
-## 仓库结构图
+`npm run verify:real-data` 将流水线验证与预览检查打包在一起。合成模式的可选夹具 QA：`npm run generate:data`、
+`npm run generate:analytics-parquet` 和 `npm run test:e2e`（针对夹具的 Playwright 工作流测试；写入 `docs/screenshots/`）。CI 在每次推送时运行 `typecheck`、`lint` 和 `build`。
+
+## 从原始关系表到浏览器安全的证据
+
+1. **锁定。** 六张原始 CSV（总计 64,735,796 字节）在任何操作运行之前，先根据
+   `pipelines/olist-margin/source-lock.json` 中的字节数和 SHA-256 哈希进行验证。Kaggle 是该数据集的权威来源；由于其无需认证的下载端点不可用，字节经由一个固定的、不可变的公共镜像传输，该镜像的文件大小与 Kaggle 的公开清单一致。原始表仅存在于一个被忽略的缓存中——不提交任何原始行，且 CLI 拒绝仓库内其他任何位置的原始输入。
+2. **协调。** 订单项按文档化规则与订单、客户、产品、支付和评论连接：2,961 个多支付订单归并到金额最大的渠道，
+   547 个多评论订单归并到最低评分，缺失品类保留为显式的
+   `unknown`，并审计支付与订单项加运费之间的差异。
+3. **派生毛利。** 毛收入使用仅基于历史的扩展品类中位数参考价（首次出现的品类周回退到当前价格、代理折扣为零）；退货和 COGS 是已披露的代理；履约是观测到的运费。毛 → 净 → 贡献的会计恒等式必须在每一行上成立。
+4. **聚合并剥离身份。** 只有在协调之后，数据才折叠为周 × 产品品类 × 映射地区 × 主导支付渠道：95 个观测周（2016-08-29 → 2018-09-03）共 15,809 个单元格，最后八周留出（14,313 分析行 / 1,496 留出行）。输出模式不携带任何客户、订单或上游产品标识符。
+5. **验证。** `--verify-only` 在粒度唯一性、边界、恒等式、精确留出集、完整周一日历、嵌入式溯源元数据、95 MiB 浏览器预算，以及从已提交 Parquet 字节精确重建两份评估报告等方面失败关闭。
+
+结果是一个 672,410 字节的 ZSTD Parquet 制品（SHA-256 `6921b7ed…5722fb`）。在相同固定环境下的第二次构建精确复现了该哈希。
+
+## 交互式工作台的功能
+
+- **毛利桥**：毛 → 折扣 → 退货 → 净 → COGS → 履约 → 贡献，
+  与所选周、品类、地区和渠道联动。
+- **品类 × 地区热力图和每周趋势**，八周留出集在视觉上与分析窗口分隔，而非混入其中。
+- **附带打印假设的促销情景**——促销深度每变动一个百分点，件数同向变动 0.8%，退货率和单位经济性固定。UI 将其标注为假设而非预测，并搭配一个留出比较周。
+- **检测与弹性面板**，仅在浏览器确认每份报告的 `artifact_sha256` 与其刚验证的 Parquet 匹配后才渲染实测报告。
+- **控制栏中的十项契约检查**——模式、唯一粒度、非空键、边界、
+  三个会计恒等式、精确留出集、溯源。任何失败都会阻断决策输出。
+
+## 实测结果（及如何解读）
+
+| 结果 | 数值 | 解读 |
+| --- | --- | --- |
+| 回放检测召回率 / 精确率 | 1.000 / 0.316 | 在完整 106 个周一的日历（11 个空周补零）上运行的 STL（13 周，稳健）+ MAD z ≥ 3.5。标签是六个确定性回放扰动——这是对检测器的刻画，而非经核实的真实异常。 |
+| 价格–件数关联 | +0.040（95% CI 0.026–0.053） | 带固定效应的 HC3 双对数 OLS，仅在分析行上拟合。关联性、接近零，如实报告。 |
+| 留出集 MAPE | 75.9% | 在较晚的八个观测周上的件数预测误差——披露为拟合较弱。 |
+
+两份报告都嵌入制品 SHA-256，并在 `--verify-only` 期间从已提交的
+Parquet 精确重现，因此屏幕上显示的数字就是流水线实测的数字。
+
+## 架构
+
+```text
+Olist 原始 CSV  （Kaggle 为权威来源；哈希锁定，从不提交）
+      │   pipelines/olist-margin/build.py — 确定性、失败关闭
+      ▼
+olist-margin.parquet  +  检测 / 弹性 / 方法报告（哈希关联）
+      │   scripts/generate-olist-margin-preview.mjs — 748 行紧凑预览，
+      │   绑定到制品哈希并对照精确字节检查
+      ▼
+Next.js 工作台（静态，仅同源）
+  ├─ 渲染前对所提供 Parquet 进行浏览器端 SHA-256 检查
+  ├─ 先紧凑预览 → 再完整 DuckDB-WASM 物化
+  │    （固定 @duckdb/duckdb-wasm 1.32.0，内置签名的 Parquet 扩展）
+  ├─ 十个失败关闭契约检查；失败阻断决策输出
+  └─ 当制品缺失/无效时以受治理合成夹具作为回退
+```
+
+## 仓库地图
 
 ```text
 margin-control-tower/
-├── src/app/page.tsx                                 # route entry
-├── src/components/analytics/MarginControlTower.tsx  # the margin workbench
-├── scripts/generate-analytics-fixtures.mjs          # seeded fixture generator
-├── tests/e2e/workflow.spec.ts                       # Playwright workflow test (writes docs/screenshots/)
+├── pipelines/olist-margin/
+│   ├── build.py                    # 原始 → 制品流水线 + 失败关闭验证
+│   ├── source-lock.json            # 六张原始表的字节数 + SHA-256
+│   ├── PROVENANCE.md               # 权威来源、许可证、传输、输出身份
+│   └── README.md                   # 方法论与复现细节
 ├── public/case-studies/margin-control-tower/
-│   ├── README.md              # metrics and workflow guide
-│   ├── architecture.mmd       # system architecture (Mermaid)
-│   ├── data-contract.json     # analytical grain + contract
-│   └── metric-registry.json   # metric definitions and formulas
-└── docs/screenshots/
+│   ├── olist-margin.parquet        # 派生的真实数据制品（672 KB，ZSTD）
+│   ├── detection-report.json       # 实测回放评估
+│   ├── elasticity-report.json      # 实测留出集评估
+│   ├── methods-evidence.json       # 绑定到制品哈希的双语方法文本
+│   ├── data-contract.json          # 夹具粒度 + 检查（metric-registry.json：公式）
+│   └── synthetic-margin-data.json  # 固定种子夹具（回退 / 测试模式）
+├── src/components/analytics/MarginControlTower.tsx   # 工作台
+├── src/lib/duckdb.ts               # 同源 DuckDB-WASM 加载器 + SHA-256 门控
+├── src/lib/olist-margin-compact.ts # 哈希绑定的紧凑预览解码器
+├── src/lib/margin-report-validation.ts  # 报告契约（失败关闭）
+├── scripts/sync-duckdb-browser-assets.mjs  # 固定运行时资产 + 内置扩展
+├── public/duckdb/                  # 内置 Parquet 扩展 + 溯源说明
+└── tests/e2e/workflow.spec.ts      # Playwright 工作流测试（夹具模式）
 ```
 
-`data-contract.json` / `metric-registry.json` 这对文件是最应该先阅读的部分:粒度和每个指标公式都以数据形式声明,这正是十项检查和瀑布对账得以实现的原因。
+## 合成夹具（回退与测试模式）
 
-## 状态与权利
+种子 `2026071301` 确定性地生成 52 周内 9,360 行，粒度为
+周 × 产品 × 地区 × 渠道，带有一个已标注的注入异常和相同的十项检查契约。它的存在是为了在真实制品缺失时工作流仍可演示和测试，并能针对已知标签展示异常诊断 UX。工作台始终声明当前激活的数据源；合成数字从不伪装成 Olist 测量值。
 
-本仓库是一个作品集案例研究快照,最初构建于 2026-07,没有发布节奏、支持承诺或外部贡献者流程。
+## 局限性与数据权利
 
-尚未授予任何开源许可证;在作出许可证决定之前保留所有权利。已提交的数据集为固定种子合成数据,由所有者生成。
+- **来源与许可证。** Kaggle 的 Olist 数据集是权威来源，许可为
+  [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)。仅提交派生的聚合数据；署名和相同方式共享义务随派生制品传递，下游复用必须遵守上游许可证。
+- **代理。** COGS（观测订单项价格的 60%）、退货（订单状态 / 评论评分）
+  和参考价折扣均为已披露的代理，而非经审计的公司经济数据。
+- **弹性是关联性的**，而非因果性的；不作任何提升（lift）声明。
+- **检测指标刻画的是检测器在确定性回放标签上的表现**；不声称任何经人工核实的真实异常。
+- 这是一个作品集案例研究，不是生产系统；不作任何商业影响声明。首次构建于 2026-07，无发布节奏或支持承诺。
+- 不授予任何开源许可证；在作出许可决定之前保留所有权利。

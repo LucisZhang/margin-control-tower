@@ -3,17 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/sync-duckdb-browser-assets.mjs",
     "dev": "next dev",
-    "build": "next build",
+    "prebuild": "node scripts/sync-duckdb-browser-assets.mjs",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test:e2e": "npm run build && playwright test",
     "generate:data": "node scripts/generate-analytics-fixtures.mjs",
-    "generate:analytics-parquet": "node scripts/generate-analytics-parquet.mjs"
+    "generate:analytics-parquet": "node scripts/generate-analytics-parquet.mjs",
+    "generate:olist-preview": "node scripts/generate-olist-margin-preview.mjs",
+    "verify:real-data": "python3 pipelines/olist-margin/build.py --verify-only && node scripts/generate-olist-margin-preview.mjs --check"
   },
   "dependencies": {
-    "@duckdb/duckdb-wasm": "^1.29.0",
+    "@duckdb/duckdb-wasm": "1.32.0",
     "@mdx-js/loader": "^3.1.0",
     "@mdx-js/react": "^3.1.0",
     "@next/mdx": "^16.2.10",

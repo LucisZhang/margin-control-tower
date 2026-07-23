@@ -4,9 +4,10 @@ import { resolve } from "node:path";
 
 test.beforeAll(async () => mkdir(resolve("docs/screenshots"), { recursive: true }));
 
-test("loads the fixed-seed margin dataset and recomputes a scenario", async ({ page }, testInfo) => {
+test("loads the verified Olist artifact and recomputes a scenario", async ({ page }, testInfo) => {
   await page.goto("/", { waitUntil: "networkidle" });
-  await expect(page.getByText("9,360 rows")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Olist (real)" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText("15,809 derived category cells · 99,441 source orders · 748 preview cells loaded")).toBeVisible();
   await page.getByRole("tab", { name: "Quality checks" }).click();
   await expect(page.locator(".analytics-quality-list .pass")).toHaveCount(10);
   await page.getByRole("button", { name: "Guided scenario" }).click();

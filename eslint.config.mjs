@@ -12,6 +12,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "public/generated/**",
+    "public/duckdb/duckdb-browser-mvp.worker.js",
     "next-env.d.ts",
   ]),
 ]);
